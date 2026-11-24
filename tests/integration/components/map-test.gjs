@@ -1,0 +1,125 @@
+import { module, test } from 'qunit';
+import { setupRenderingTest } from 'super-rentals/tests/helpers';
+import { render, find, rerender } from '@ember/test-helpers';
+import { tracked } from '@glimmer/tracking';
+import ENV from 'super-rentals/config/environment';
+import Map from 'super-rentals/components/map';
+
+module('Integration | Component | map', function (hooks) {
+  setupRenderingTest(hooks);
+
+  test('it renders a map image for the specified parameters', async function (assert) {
+    await render(<template>
+      <Map
+        @lat="37.7797"
+        @lng="-122.4184"
+        @zoom="10"
+        @width="150"
+        @height="120"
+      />
+    </template>);
+
+    assert
+      .dom('.map img')
+      .exists()
+      .hasAttribute('alt', 'Map image at coordinates 37.7797,-122.4184')
+      .hasAttribute('src')
+      .hasAttribute('width', '150')
+      .hasAttribute('height', '120');
+
+    let { src } = find('.map img');
+    let token = encodeURIComponent(ENV.TOMTOM_ACCESS_TOKEN);
+
+    assert.ok(src.startsWith('https://api.tomtom.com/'));
+    assert.ok(src.includes('zoom=10'));
+    assert.ok(src.includes('center=-122.4184,37.7797'));
+    assert.ok(src.includes(`key=${token}`));
+  });
+
+  test('it updates the src attribute when arguments change', async function (assert) {
+    class State {
+      @tracked lat = 37.7749;
+      @tracked lng = -122.4194;
+      @tracked zoom = 10;
+      @tracked width = 150;
+      @tracked height = 120;
+    }
+
+    const state = new State();
+
+    await render(<template>
+      <Map
+        @lat={{state.lat}}
+        @lng={{state.lng}}
+        @zoom={{state.zoom}}
+        @width={{state.width}}
+        @height={{state.height}}
+      />
+    </template>);
+
+    let img = find('.map img');
+
+    assert.ok(img.src.includes('zoom=10'));
+    assert.ok(img.src.includes('-122.4194,37.7749'));
+    assert.ok(img.src.includes('width=150'));
+    assert.ok(img.src.includes('height=120'));
+
+    state.width = 300;
+    state.height = 200;
+    state.zoom = 12;
+
+    await rerender();
+
+    assert.ok(
+    img.src.includes('-122.4194,37.7749'),
+    'the src should still include the lng,lat parameter',
+    );
+
+    assert.ok(img.src.includes('width=300'));
+    assert.ok(img.src.includes('height=200'));
+    assert.ok(img.src.includes('zoom=12'));
+
+    state.lat = 47.6062;
+    state.lng = -122.3321;
+
+    await rerender();
+
+    assert.ok(img.src.includes('center=-122.3321,47.6062'));
+  });
+
+  test('the default alt attribute can be overridden', async function (assert) {
+    await render(<template>
+      <Map
+        @lat="37.7797"
+        @lng="-122.4184"
+        @zoom="10"
+        @width="150"
+        @height="120"
+        alt="A map of San Francisco"
+      />
+    </template>);
+
+    assert.dom('.map img').hasAttribute('alt', 'A map of San Francisco');
+  });
+
+  test('the src, width and height attributes cannot be overridden', async function (assert) {
+    await render(<template>
+      <Map
+        @lat="37.7797"
+        @lng="-122.4184"
+        @zoom="10"
+        @width="150"
+        @height="120"
+        src="/assets/images/teaching-tomster.png"
+        width="200"
+        height="300"
+      />
+    </template>);
+
+    assert
+      .dom('.map img')
+      .hasAttribute('src', /^https:\/\/api\.tomtom\.com\//)
+      .hasAttribute('width', '150')
+      .hasAttribute('height', '120');
+  });
+});
